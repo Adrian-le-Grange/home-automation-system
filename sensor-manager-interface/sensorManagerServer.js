@@ -1,11 +1,13 @@
-var fs = require("fs");
-var request = require("request");
-var express = require("express");
-var app = express();
-var port = process.env.port || 3838;
+const request = require('request');
+var bodyParser = require("body-parser");
+var express = require('express');
 
-const sensorManagementServerIP = "127.0.0.1";
-const sensorManagementServerPort = "3939";
+var app = express();
+app.use(bodyParser.urlencoded({ extended : false }));
+app.use(bodyParser.json());
+
+var port = process.env.port || 3939;
+var devices = []; //Array that contains all registered devices
 
 //Function to check if a given config object (objects contained in 
 //devices.json) is valid
@@ -69,23 +71,6 @@ function checkConfigObject(configObject)
         return  {
                     "valid" : false,
                     "message" : "The 'datatype' attribute may not be an empty string"
-                }
-    }
-
-    //Check 'source'
-    if(!configObject.hasOwnProperty('source'))
-    {
-        return  {
-                    "valid" : false,
-                    "message" : "Device configuration object is missing the 'source' attribute"
-                }
-    }
-
-    if(configObject.source == "")
-    {
-        return  {
-                    "valid" : false,
-                    "message" : "The 'source' attribute may not be an empty string"
                 }
     }
 
@@ -204,8 +189,6 @@ function checkConfigObject(configObject)
                     }
         }
     }
-
-
     //TODO: Check that path specified by source exists
     //TODO: Check that a value can be written to or read from source
 
@@ -215,122 +198,75 @@ function checkConfigObject(configObject)
             }
 }
 
-function initialize(deviceConfigs)
+//Function to generate a unique id
+var currentID = 1;
+function getUniqueID()
 {
-    var registerArray = []; //Array that keeps the register objects of all
-                            //sensors that need to be registered
+    return currentID++;
+}
 
-    //Check if all devices have an id field.
-    var numNewConfigurations = 0;
+//Endpoint: register
+app.get("/register", function(request, response)
+{
+    var deviceConfigs = request.body;
+    var requestingServerIP = request.get("host");
+    var requestingServerPort = 3838;
+
+    var results = [];
     for(var i = 0; i < deviceConfigs.length; i++)
     {
         var checkObject = checkConfigObject(deviceConfigs[i]);
         if(checkObject.valid)
-        {
-            //The object configuration is valid
+        {   
+            //Register the device
             
-            //If there is no 'id' attribute then the device has not been registered
-            if(!deviceConfigs[i].hasOwnProperty('id'))
-            {
-                //We need to register device on the sensor interface server
-                numNewConfigurations++;
+            //TODO: Check for boolean type and fill in 'min' and 'max' to 0 and 1
 
-                //Create a registration object for the device
-                var registerObject = 
-                    {
-                        "name": deviceConfigs[i].name,
-                        "type" : deviceConfigs[i].type,
-                        "datatype" : deviceConfigs[i].datatype,
-                        "min" : deviceConfigs[i].min,
-                        "max" : deviceConfigs[i].max
-                    }
+            //TODO: Check if device had an ID (In this case update the device)
 
-                //Add the object to the array of objects that are going to be registered
-                registerArray.push(registerObject);
-            }
+            //Assign the device an id
+            var deviceID = getUniqueID();
+
+            //Create a registration object for the device
+            var device = 
+                {
+                    "id" : deviceID,
+                    "name": deviceConfigs[i].name,
+                    "type" : deviceConfigs[i].type,
+                    "datatype" : deviceConfigs[i].datatype,
+                    "min" : deviceConfigs[i].min,
+                    "max" : deviceConfigs[i].max,
+                    "server" : requestingServerIP,
+                    "port" : requestingServerPort
+                }
+
+            //Add the device to the array of registered devices
+            devices.push(device);
+
+            //Indicate success in the results of the response
+            results.push({
+                "status" : "ok",
+                "id" : deviceID
+            });
         }
         else
         {
-            //The object configuration is not valid
-            console.log("Configuration for device " + (i+1) + " is invalid, skipping device.");
+            //The registration object is not valid
+            console.log("Registration for object " + (i+1) + " is invalid, skipping device.");
             console.log("\tReason: " + checkObject.message);
+
+            //Indicate failure in the results of the response
+            results.push({
+                "status" : "failed",
+                "message" : "Device registration was invalid"
+            });
         }
     }
     
-    if(numNewConfigurations > 0)
-    {
-        console.log("Discovered " + numNewConfigurations + " new device configurations");
-
-        //Now we register the devices that has not been regestered
-        var requestOptions = {
-            uri: "http://" + sensorManagementServerIP + ":" + sensorManagementServerPort + "/register",
-            body: JSON.stringify(registerArray),
-            method: 'GET',
-            headers: 
-                {
-                    'Content-Type': 'application/json'
-                }
-        }
-        request(requestOptions, (err, res, body) => {
-            if(err)
-            {
-                console.log("Error - Failed to register new devices");
-                return console.log(err);
-            }
-
-            var responses = JSON.parse(body);
-            var numSuccessful = 0;
-            for(var i = 0; i < responses.length; i++)
-            {
-                if(responses[i].status == "ok")
-                {
-                    //We count how many of the devices registered successfully
-                    numSuccessful++;
-
-                    //Update the deviceConfiguration objects with their newly allocated ids
-                    deviceConfigs[i].id = responses[i].id;
-                }
-                else
-                {
-                    console.log("Warning - Device registration failed");
-                    if(responses[i].hasOwnProperty("message"))
-                    {
-                        console.log("\tReason: " + responses[i].message);
-                    }
-                }
-            }
-
-            //Overwrite devices.json file with the updated configs
-            fs.renameSync("./devices.json", "./devices.json.old");
-            fs.appendFileSync("./devices.json", JSON.stringify(deviceConfigs));
-            fs.unlinkSync("./devices.json.old") ;
-
-            console.log("Successfully registered " + numSuccessful + " new device(s)");
-        });
-    }
-}
-
-//Endpoint: poll
-app.get("/poll", function(request, response)
-{
-    //TODO: Check body of request for specific sensor values
-    
-    var jsonObject = [{ "Message":"Device 1" }, { "Message" : "Device 2" }];
-    response.json(jsonObject);
+    response.end(JSON.stringify(results));
 });
-
-//Endpoint: control
-app.get("/control", function(request, response)
-{    
-    response.json({ "result":"ok" });
-});
-
-console.log("Initializing");
-//Read the config file
-var deviceConfigs = JSON.parse(fs.readFileSync('./devices.json', 'utf8'));
-initialize(deviceConfigs);
 
 app.listen(port, function ()
 {
-    console.log("Sensor server running on port " + port + " (Started " + new Date() + ")");
+    console.log("Sensor manager server running on port " + port + " (Started " + new Date() + ")");
 });
