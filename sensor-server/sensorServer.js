@@ -240,10 +240,35 @@ function initialize(deviceConfigs)
                     {
                         "name": deviceConfigs[i].name,
                         "type" : deviceConfigs[i].type,
-                        "datatype" : deviceConfigs[i].datatype,
-                        "min" : deviceConfigs[i].min,
-                        "max" : deviceConfigs[i].max
+                        "datatype" : deviceConfigs[i].datatype
+                    };
+
+                //Outputs has a initial value attribute
+                if(registerObject.type == "output")
+                {
+                    registerObject.initialValue = deviceConfigs[i].initialValue;
+                }
+
+                //Float and integer types have min and max values
+                switch(deviceConfigs[i].datatype)
+                {
+                    case "float":
+                    {
+                        registerObject.min = deviceConfigs[i].min;
+                        registerObject.max = deviceConfigs[i].max;
+                        break;
                     }
+                    case "integer":
+                    {
+                        registerObject.min = deviceConfigs[i].min;
+                        registerObject.max = deviceConfigs[i].max;
+                        break;
+                    }
+                    case "boolean":
+                    {
+                        break;
+                    }
+                }
 
                 //Add the object to the array of objects that are going to be registered
                 registerArray.push(registerObject);
@@ -302,7 +327,13 @@ function initialize(deviceConfigs)
 
             //Overwrite devices.json file with the updated configs
             fs.renameSync("./devices.json", "./devices.json.old");
-            fs.appendFileSync("./devices.json", JSON.stringify(deviceConfigs));
+            //fs.appendFileSync("./devices.json", JSON.stringify(deviceConfigs));
+            var configFile = JSON.stringify(deviceConfigs, null, 2);
+            for(var x = 0; x < configFile.length; x++)
+            {
+                
+            }
+            fs.appendFileSync("./devices.json", configFile);
             fs.unlinkSync("./devices.json.old") ;
 
             console.log("Successfully registered " + numSuccessful + " new device(s)");
@@ -310,13 +341,54 @@ function initialize(deviceConfigs)
     }
 }
 
+function getCurrentDeviceValue(deviceConfig)
+{
+    //Open file indicated by the source of the config
+    
+    //Get the current value in the file
+    var value = JSON.parse(fs.readFileSync("../sensors/" + deviceConfig.id + ".source"));
+    
+    //Case the value to appropriate type
+    switch(deviceConfig.datatype)
+    {
+        case "integer":
+        {
+            value = Integer.parse(value);
+            break;
+        }
+        case "float":
+        {
+            value = Float.parse(value);
+            break;
+        }
+        case "boolean":
+        {
+            value = Boolean.parse(value);
+            break;
+        }
+    }
+
+    return value;
+}
+
 //Endpoint: poll
 app.get("/poll", function(request, response)
 {
-    //TODO: Check body of request for specific sensor values
+    //Return list of current sensor values and their respective ids
+    var responseObject = [];
     
-    var jsonObject = [{ "Message":"Device 1" }, { "Message" : "Device 2" }];
-    response.json(jsonObject);
+    for(i = 0; i < deviceConfigs.length; i++)
+    {
+        //Get reading from this sensor
+        var value = getCurrentDeviceValue(deviceConfigs[i]);
+
+        responseObject.push({
+            "id" : deviceConfigs[i].id,
+            "value" : value
+        });
+    }
+    
+    response.json(responseObject);
 });
 
 //Endpoint: control
@@ -328,6 +400,22 @@ app.get("/control", function(request, response)
 console.log("Initializing");
 //Read the config file
 var deviceConfigs = JSON.parse(fs.readFileSync('./devices.json', 'utf8'));
+
+//Remove config file IDs if specified
+if(process.argv[2] == "-r")
+{
+    //We remove all ids from config file as if we are registering all devices again
+    for(i = 0; i < deviceConfigs.length; i++)
+    {
+        if(deviceConfigs[i].hasOwnProperty('id'))
+        {
+            delete deviceConfigs[i].id;
+        }
+    }
+
+    console.log("Removed device IDs");
+}
+
 initialize(deviceConfigs);
 
 app.listen(port, function ()

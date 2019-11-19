@@ -189,6 +189,19 @@ function checkConfigObject(configObject)
                     }
         }
     }
+
+    //Check 'id' field if present
+    if(configObject.hasOwnProperty("id"))
+    {
+        if(typeof configObject.id != "number")
+        {
+            return  {
+                        "valid" : false,
+                        "message" : "The 'id' attribute must be a number"
+                    }
+        }
+    }
+
     //TODO: Check that path specified by source exists
     //TODO: Check that a value can be written to or read from source
 
@@ -205,6 +218,23 @@ function getUniqueID()
     return currentID++;
 }
 
+//Function that is used to find a registered object by id
+//Returns the object if found and null otherwise
+function findDevice(id)
+{
+    //TODO: Could maybe use a hash table to speed up searching
+    
+    for(var searchIndex = 0; searchIndex < deviceConfigs.length; i++)
+    {
+        if(devices[searchIndex].id == id)
+        {
+            return devices[searchIndex];
+        }
+    }
+
+    return null;
+}
+
 //Endpoint: register
 app.get("/register", function(request, response)
 {
@@ -213,32 +243,82 @@ app.get("/register", function(request, response)
     var requestingServerPort = 3838;
 
     var results = [];
+    var numUpdates = 0;
+    var numRegister = 0;
     for(var i = 0; i < deviceConfigs.length; i++)
     {
         var checkObject = checkConfigObject(deviceConfigs[i]);
         if(checkObject.valid)
         {   
-            //Register the device
-            
-            //TODO: Check for boolean type and fill in 'min' and 'max' to 0 and 1
+            if(deviceConfigs[i].hasOwnProperty("id"))
+            {
+                //If the object has an id we try to update it, otherwise we register it
+                var updateObject = findDevice(deviceConfigs[i].id);
 
-            //TODO: Check if device had an ID (In this case update the device)
+                if(updateObject != null)
+                {
+                    //We found the object so update it
+                    updateObject.name = deviceConfigs[i].name;
+                    updateObject.type = deviceConfigs[i].type;
+                    updateObject.datatype = deviceConfigs[i].datatype;
+                    
+                    if(updateObject.datatype == "boolean")
+                    {
+                        updateObject.min = 0;
+                        updateObject.max = 1;
+                    }
+                    else
+                    {
+                        updateObject.min = deviceConfigs[i].min;
+                        updateObject.max = deviceConfigs[i].max;
+                    }
+
+                    updateObject.server = requestingServerIP;
+                    updateObject.port = requestingServerPort;
+
+                    results.push({
+                        "status" : "ok",
+                        "id" : deviceID
+                    });
+                    numUpdates++;
+                    continue;
+                }
+            }
+
+            //Register the device since it was not already registered
+            switch(deviceConfigs[i].datatype)
+            {
+                case "float":
+                {
+                    break;   
+                }
+                case "integer":
+                {
+                    break;
+                }
+                case "boolean":
+                {
+                    deviceConfigs[i].min = 0;
+                    deviceConfigs[i].max = 1;
+                    break;
+                }
+            }
 
             //Assign the device an id
             var deviceID = getUniqueID();
 
             //Create a registration object for the device
             var device = 
-                {
-                    "id" : deviceID,
-                    "name": deviceConfigs[i].name,
-                    "type" : deviceConfigs[i].type,
-                    "datatype" : deviceConfigs[i].datatype,
-                    "min" : deviceConfigs[i].min,
-                    "max" : deviceConfigs[i].max,
-                    "server" : requestingServerIP,
-                    "port" : requestingServerPort
-                }
+            {
+                "id" : deviceID,
+                "name": deviceConfigs[i].name,
+                "type" : deviceConfigs[i].type,
+                "datatype" : deviceConfigs[i].datatype,
+                "min" : deviceConfigs[i].min,
+                "max" : deviceConfigs[i].max,
+                "server" : requestingServerIP,
+                "port" : requestingServerPort
+            }
 
             //Add the device to the array of registered devices
             devices.push(device);
@@ -248,6 +328,7 @@ app.get("/register", function(request, response)
                 "status" : "ok",
                 "id" : deviceID
             });
+            numRegister++;
         }
         else
         {
@@ -258,11 +339,25 @@ app.get("/register", function(request, response)
             //Indicate failure in the results of the response
             results.push({
                 "status" : "failed",
-                "message" : "Device registration was invalid"
+                "message" : checkObject.message
             });
         }
     }
     
+    if(numUpdates > 0)
+    {
+        console.log("Updated " + numUpdates + " device(s)");
+    }
+
+    if(numRegister > 0)
+    {
+        console.log("Registered " + numRegister + " device(s)")
+    }
+
+    console.log("Regestered devices:\n");
+    console.debug(devices);
+
+    //Complete request
     response.end(JSON.stringify(results));
 });
 
