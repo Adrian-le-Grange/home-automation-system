@@ -354,9 +354,6 @@ app.get("/register", function(request, response)
         console.log("Registered " + numRegister + " device(s)")
     }
 
-    console.log("Regestered devices:\n");
-    console.debug(devices);
-
     //Complete request
     response.end(JSON.stringify(results));
 });

@@ -1,7 +1,9 @@
 var fs = require("fs");
 var request = require("request");
+var bodyParser = require('body-parser');
 var express = require("express");
 var app = express();
+app.use(bodyParser.json());
 var port = process.env.port || 3838;
 
 const sensorManagementServerIP = "127.0.0.1";
@@ -346,24 +348,24 @@ function getCurrentDeviceValue(deviceConfig)
     //Open file indicated by the source of the config
     
     //Get the current value in the file
-    var value = JSON.parse(fs.readFileSync("../sensors/" + deviceConfig.id + ".source"));
+    var value = JSON.parse(fs.readFileSync(deviceConfig.source));
     
     //Case the value to appropriate type
     switch(deviceConfig.datatype)
     {
         case "integer":
         {
-            value = Integer.parse(value);
+            value = parseInt(value);
             break;
         }
         case "float":
         {
-            value = Float.parse(value);
+            value = parseFloat(value);
             break;
         }
         case "boolean":
         {
-            value = Boolean.parse(value);
+            //No parsing neccesary for bool values. Already 0 or 1.
             break;
         }
     }
@@ -371,9 +373,26 @@ function getCurrentDeviceValue(deviceConfig)
     return value;
 }
 
+//Function to retrieve a device's config object by the device ID
+//Returns the device's config object if the ID was found and null otherwise
+function getDeviceConfigByID(deviceID)
+{
+    for(i = 0; i < deviceConfigs.length; i++)
+    {
+        if(deviceConfigs[i].id == deviceID)
+        {
+            return deviceConfigs[i];
+        }
+    }
+
+    return null;
+}
+
 //Endpoint: poll
 app.get("/poll", function(request, response)
 {
+    //  TODO: Add ability to request only specific sensors
+    
     //Return list of current sensor values and their respective ids
     var responseObject = [];
     
@@ -393,11 +412,57 @@ app.get("/poll", function(request, response)
 
 //Endpoint: control
 app.get("/control", function(request, response)
-{    
-    response.json({ "result":"ok" });
+{
+    //Check request
+    if(!request.body.hasOwnProperty("id"))
+    {
+        response.json({
+        	"status" : "failed",
+        	"message" : "No 'id' attribute specified"
+		});
+		return;
+    }
+
+    if(!request.body.hasOwnProperty("value"))
+    {
+        response.json({
+            "status" : "failed",
+            "message" : "No 'value' attribute specified"
+		});
+		return;
+    }
+
+    //Check if device id is known
+    var deviceConfig = getDeviceConfigByID(request.body.id);
+    if(deviceConfig == null)
+    {
+        response.json({
+            "status" : "failed",
+            "message" : "Device with id '" + request.body.id + "' could not be found"
+		});
+		return;
+    }
+
+	//Write given value to device file
+	if(fs.existsSync(deviceConfig.source))
+	{
+    	fs.renameSync(deviceConfig.source, deviceConfig.source + ".old");
+    	fs.appendFileSync(deviceConfig.source, request.body.value);
+    	fs.unlinkSync(deviceConfig.source + ".old") ;
+	}
+	else
+	{
+		fs.appendFileSync(deviceConfig.source, request.body.value);
+	}
+
+    //Indicate succsess
+    response.json({ "status" : "ok" });
 });
 
-console.log("Initializing");
+
+//-- Initialize the server --//
+console.log("Initializing...");
+
 //Read the config file
 var deviceConfigs = JSON.parse(fs.readFileSync('./devices.json', 'utf8'));
 
@@ -412,7 +477,6 @@ if(process.argv[2] == "-r")
             delete deviceConfigs[i].id;
         }
     }
-
     console.log("Removed device IDs");
 }
 

@@ -5,7 +5,7 @@
     "datatype": "float",
     "min": 0.1,
     "max": 2.1,
-    "source": "./plugins/moisture -p 10",
+    "source": "/tmp/sensor1.source",
     "id": 1
   },
   {
@@ -13,7 +13,7 @@
     "type": "output",
     "datatype": "boolean",
     "initialValue": true,
-    "source": "./plugins/moisture -p 10",
+    "source": "/tmp/sensor2.source",
     "id": 2
   },
   {
@@ -22,7 +22,17 @@
     "datatype": "integer",
     "min": 0,
     "max": 10000,
-    "source": "./plugins/moisture -p 10",
+    "source": "/tmp/sensor3.source",
     "id": 3
+  },
+  {
+    "name": "Hydrophonics shutters",
+    "type": "output",
+    "datatype": "integer",
+    "initialValue": 50,
+    "min": 0,
+    "max": 100,
+    "source": "/tmp/control1.source",
+    "id": 4
   }
 ]
