@@ -358,6 +358,12 @@ app.get("/register", function(request, response)
     response.end(JSON.stringify(results));
 });
 
+app.get("/dashboard", function(request, response){
+    //We must generate a web page containing all of the sensor guages
+    //OR
+    //We generate a website that will automatically generate the sensor guages (Less traffic to my server)
+});
+
 app.listen(port, function ()
 {
     console.log("Sensor manager server running on port " + port + " (Started " + new Date() + ")");
