@@ -90,6 +90,7 @@ int main(int argc, char** argv)
         emulateFloatSensor("/tmp/sensor1.source");
         emulateBooleanSensor("/tmp/sensor2.source");
         emulateIntegerSensor("/tmp/sensor3.source");
+        emulateIntegerSensor("/tmp/sensor4.source");
         //cout << "Updated" << endl;
         usleep(updateInterval*1000);
     }

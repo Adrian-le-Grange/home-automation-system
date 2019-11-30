@@ -1,7 +1,7 @@
 {
   "name": "sensor-server",
   "version": "1.0.0",
-  "description": "Server that provides an API interface for controlling and monitoring devices.",
+  "description": "A server that provides \"smart\" functionality to \"dumb\" devices",
   "main": "sensorServer.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -9,6 +9,8 @@
   "author": "Adrian le Grange",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.17.1"
+    "body-parser": "^1.19.0",
+    "express": "^4.17.1",
+    "ip": "^1.1.5"
   }
 }

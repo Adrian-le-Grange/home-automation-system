@@ -2,9 +2,13 @@ var fs = require("fs");
 var request = require("request");
 var bodyParser = require('body-parser');
 var express = require("express");
+var ip = require("ip");
 var app = express();
 app.use(bodyParser.json());
 var port = process.env.port || 3838;
+
+//Set local address
+var server = ip.address();
 
 const sensorManagementServerIP = "127.0.0.1";
 const sensorManagementServerPort = "3939";
@@ -35,9 +39,9 @@ function checkConfigObject(configObject)
     if(configObject.name == "")
     {
         return  {
-            "valid" : false,
-            "message" : "The 'name' attribute may not be an empty string"
-        }
+                    "valid" : false,
+                    "message" : "The 'name' attribute may not be an empty string"
+                }
     }
 
     //Check 'type'
@@ -242,7 +246,9 @@ function initialize(deviceConfigs)
                     {
                         "name": deviceConfigs[i].name,
                         "type" : deviceConfigs[i].type,
-                        "datatype" : deviceConfigs[i].datatype
+                        "datatype" : deviceConfigs[i].datatype,
+                        "server" : server,
+                        "port" : port
                     };
 
                 //Outputs has a initial value attribute
@@ -327,14 +333,17 @@ function initialize(deviceConfigs)
                 }
             }
 
+            //Remove the local address and port from the config array (We dont want to save this in the config file)
+            for(i = 0; i < deviceConfigs.length; i++)
+            {
+                delete deviceConfigs[i].server;
+                delete deviceConfigs[i].port;
+            }
+
             //Overwrite devices.json file with the updated configs
             fs.renameSync("./devices.json", "./devices.json.old");
             //fs.appendFileSync("./devices.json", JSON.stringify(deviceConfigs));
             var configFile = JSON.stringify(deviceConfigs, null, 2);
-            for(var x = 0; x < configFile.length; x++)
-            {
-                
-            }
             fs.appendFileSync("./devices.json", configFile);
             fs.unlinkSync("./devices.json.old") ;
 
@@ -345,11 +354,9 @@ function initialize(deviceConfigs)
 
 function getCurrentDeviceValue(deviceConfig)
 {
-    //Open file indicated by the source of the config
-    
     //Get the current value in the file
     var value = JSON.parse(fs.readFileSync(deviceConfig.source));
-    
+
     //Case the value to appropriate type
     switch(deviceConfig.datatype)
     {
@@ -390,23 +397,53 @@ function getDeviceConfigByID(deviceID)
 
 //Endpoint: poll
 app.get("/poll", function(request, response)
-{
-    //  TODO: Add ability to request only specific sensors
+{   
+    var responseObject = null;
     
-    //Return list of current sensor values and their respective ids
-    var responseObject = [];
-    
-    for(i = 0; i < deviceConfigs.length; i++)
+    if(request.body.hasOwnProperty("id"))
     {
-        //Get reading from this sensor
-        var value = getCurrentDeviceValue(deviceConfigs[i]);
+        //Check if id is known
+        var device = getDeviceConfigByID(request.body.id);
+        if(device == null)
+        {
+            //Requested device does not exist
+            responseObject = {
+                "status" : "failed",
+                "message" : "Requested device (id: " + request.body.id + ") does not exist"
+            }
+        }
+        else
+        {
+            //Get current value from device
+            var deviceValue = getCurrentDeviceValue(device);
+            responseObject = {
+                "status" : "ok",
+                "id" : request.body.id,
+                "value" : deviceValue
+            }
+        }
+    }
+    else
+    {
+        //  TODO: Add ability to request only specific sensors
+        
+        //Return list of current sensor values and their respective ids
+        responseObject = [];
+        
+        for(i = 0; i < deviceConfigs.length; i++)
+        {
+            //Get reading from this sensor
+            var value = getCurrentDeviceValue(deviceConfigs[i]);
 
-        responseObject.push({
-            "id" : deviceConfigs[i].id,
-            "value" : value
-        });
+            responseObject.push({
+                "status" : "ok",
+                "id" : deviceConfigs[i].id,
+                "value" : value
+            });
+        }
     }
     
+    //Respond with the requested values
     response.json(responseObject);
 });
 
@@ -482,7 +519,8 @@ if(process.argv[2] == "-r")
 
 initialize(deviceConfigs);
 
+//Start the server
 app.listen(port, function ()
 {
-    console.log("Sensor server running on port " + port + " (Started " + new Date() + ")");
+    console.log("Sensor server running " + "(Started " + new Date() + " on "+ server + ":" + port +")");
 });

@@ -195,14 +195,14 @@ a.article:hover
 }
 
 /* Widgets */
-.flex-container 
+.widget-container 
 {
     display: flex;
     flex-wrap: wrap;
     background-color: var(--background-color);
 }
 
-.flex-container > div 
+.widget-container > div 
 {
     background-color: var(--quaternary-color);
     width: 350px;

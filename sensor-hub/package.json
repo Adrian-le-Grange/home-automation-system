@@ -1,8 +1,8 @@
 {
-  "name": "sensor-manager-interface",
+  "name": "sensor-hub",
   "version": "1.0.0",
-  "description": "The main server for controlling and monitoring sensors using the sensor-server",
-  "main": "sensorManagerServer.js",
+  "description": "Server that provides core home automation functionality",
+  "main": "sensorHub.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.19.0",
-    "express": "^4.17.1"
+    "express": "^4.17.1",
+    "ip": "^1.1.5"
   }
 }

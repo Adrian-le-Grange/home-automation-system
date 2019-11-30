@@ -1,13 +1,32 @@
-const request = require('request');
+var request = require('request');
 var bodyParser = require("body-parser");
 var express = require('express');
+var ip = require("ip");
 
 var app = express();
 app.use(bodyParser.urlencoded({ extended : false }));
 app.use(bodyParser.json());
 
 var port = process.env.port || 3939;
+
+//Set local address
+var server = ip.address();
+
+/* Device example
+{
+    "id" : deviceID,
+    "name": deviceName,
+    "server" : serverAddress,
+    "port" : serverPort,
+    "type" : deviceType (Input/Output),
+    "datatype" : deviceDataType (float, integer, boolean),
+    "min" : deviceMinimumValue,
+    "max" : deviceMaximumValue,
+    "value" : deviceInitialValue
+}
+*/
 var devices = []; //Array that contains all registered devices
+var updateRate = 500; //The rate at which each device is polled. (i.e the rate at which the device files are read)
 
 //Function to check if a given config object (objects contained in 
 //devices.json) is valid
@@ -71,6 +90,38 @@ function checkConfigObject(configObject)
         return  {
                     "valid" : false,
                     "message" : "The 'datatype' attribute may not be an empty string"
+                }
+    }
+
+    //Check 'server'
+    if(!configObject.hasOwnProperty('server'))
+    {
+        return  {
+                    "valid" : false,
+                    "message" : "Device configuration object is missing the 'server' attribute"
+                }
+    }
+    if(configObject.server == "")
+    {
+        return  {
+                    "valid" : false,
+                    "message" : "The 'server' attribute may not be an empty string"
+                }
+    }
+
+    //Check 'port'
+    if(!configObject.hasOwnProperty('port'))
+    {
+        return  {
+                    "valid" : false,
+                    "message" : "Device configuration object is missing the 'port' attribute"
+                }
+    }
+    if(configObject.port == "")
+    {
+        return  {
+                    "valid" : false,
+                    "message" : "The 'port' attribute may not be an empty string"
                 }
     }
 
@@ -224,7 +275,7 @@ function findDevice(id)
 {
     //TODO: Could maybe use a hash table to speed up searching
     
-    for(var searchIndex = 0; searchIndex < deviceConfigs.length; i++)
+    for(var searchIndex = 0; searchIndex < devices.length; i++)
     {
         if(devices[searchIndex].id == id)
         {
@@ -235,12 +286,110 @@ function findDevice(id)
     return null;
 }
 
+//Server our web page
+app.use('/Inteliome',express.static(__dirname + '/Dashboard'));
+
+/*
+//Endpoint: dashboard (The default http page)
+app.get("/dashboard", function(request, response){
+    //We generate a website that will automatically generate the device interfaces
+
+});
+*/
+//Endpoint: getUpdate (For updating the dashboard)
+app.get("/getUpdate", function(request, response){
+    if(!request.body.hasOwnProperty("ids"))
+    {
+        //Report failure
+        response.json({
+            "status" : "failed",
+            "message" : "Request has no 'ids' attribute"
+        });
+        return;
+    }
+
+    if(!Array.isArray(request.body.ids))
+    {
+        //Report failure
+        response.json({
+            "status" : "failed",
+            "message" : "The 'ids' attribute must be an array"
+        });
+        return;
+    }
+
+    //Create response for each of the requested ids
+    var responseObject = [];
+    var requestedIDs = request.body.ids;
+    for(i = 0; i < requestedIDs.length; i++)
+    {
+        var requestedDevice = findDevice(requestedIDs[i]);
+        var deviceResponse;
+        if(requestedDevice != null)
+        {
+            //The device exists
+            deviceResponse = {
+                "status" : "ok",
+                "id" : requestedDevice.id,
+                "value" : requestedDevice.value
+            };
+        }
+        else
+        {
+            //The device does not exist
+            deviceResponse = {
+                "status" : "failed",
+                "message" : "Device (id: " + requestedDevice.id + ") does not exist"
+            };
+        }
+
+        //Add this device's reponse to the final response
+        responseObject.push(deviceResponse);
+    }
+
+    response.json(responseObject)
+});
+
+//Endpoint: getDevices
+//Returns: array of devices in the form of
+/*
+[
+    {
+        "id" : deviceID,
+        "name" : deviceName,
+        "type" : deviceType (Input/Output),
+        "datatype" : deviceDatatype (integer, float, boolean),
+        "min" : deviceMinimumValue,
+        "max" : deviceMaximumValue,
+        "value" : deviceCurrentValue
+    },
+    ...
+]
+*/
+app.get("/getDevices", function(request, response){
+    var responseObject = [];
+    for(i = 0; i < devices.length; i++)
+    {
+        var device = {
+            "id" : devices[i].id,
+            "name" : devices[i].name,
+            "type" : devices[i].type,
+            "datatype" : devices[i].datatype,
+            "min" : devices[i].min,
+            "max" : devices[i].max,
+            "value" : devices[i].value
+        }
+
+        responseObject.push(device);
+    }
+
+    response.json(responseObject)
+});
+
 //Endpoint: register
 app.get("/register", function(request, response)
 {
     var deviceConfigs = request.body;
-    var requestingServerIP = request.get("host");
-    var requestingServerPort = 3838;
 
     var results = [];
     var numUpdates = 0;
@@ -307,17 +456,18 @@ app.get("/register", function(request, response)
             //Assign the device an id
             var deviceID = getUniqueID();
 
-            //Create a registration object for the device
+            //Create the device
             var device = 
             {
-                "id" : deviceID,
-                "name": deviceConfigs[i].name,
-                "type" : deviceConfigs[i].type,
-                "datatype" : deviceConfigs[i].datatype,
-                "min" : deviceConfigs[i].min,
-                "max" : deviceConfigs[i].max,
-                "server" : requestingServerIP,
-                "port" : requestingServerPort
+                "id"        : deviceID,
+                "name"      : deviceConfigs[i].name,
+                "server"    : deviceConfigs[i].server,
+                "port"      : deviceConfigs[i].port,
+                "type"      : deviceConfigs[i].type,
+                "datatype"  : deviceConfigs[i].datatype,
+                "min"       : deviceConfigs[i].min,
+                "max"       : deviceConfigs[i].max,
+                "value"     : deviceConfigs[i].initialValue
             }
 
             //Add the device to the array of registered devices
@@ -358,13 +508,55 @@ app.get("/register", function(request, response)
     response.end(JSON.stringify(results));
 });
 
-app.get("/dashboard", function(request, response){
-    //We must generate a web page containing all of the sensor guages
-    //OR
-    //We generate a website that will automatically generate the sensor guages (Less traffic to my server)
+//Endpoint: Any unknown endpoint gets redirected to the dashboard
+app.get('*', function (req, res) {
+    console.log("Got request for " + req.originalUrl);
+    res.redirect('/Inteliome/dashboard.html');
 });
 
+function updateDeviceValue(device)
+{
+    //Get update for device
+    var requestOptions = {
+        uri: "http://" + device.server + ":" + device.port + "/poll",
+        body: JSON.stringify({
+            "id" : device.id
+        }),
+        method: 'GET',
+        headers: 
+            {
+                'Content-Type': 'application/json'
+            }
+    }
+    request(requestOptions, (err, res, body) => {
+        if(err)
+        {
+            console.log("Error - Could not fetch update");
+            return console.log(err);
+        }
+        var response = JSON.parse(body);
+        
+        //Update local value with the retrieved value
+        device.value = response.value;
+    });
+}
+
+//Continously update current sensor values
+function updateSensorValues()
+{
+    //Run through all known devices
+    for(i = 0; i < devices.length; i++)
+    {
+        updateDeviceValue(devices[i]);
+    }
+
+    setTimeout(updateSensorValues, updateRate);
+}
+
+updateSensorValues();
+
+//Start the server
 app.listen(port, function ()
 {
-    console.log("Sensor manager server running on port " + port + " (Started " + new Date() + ")");
+    console.log("Sensor hub running " + "(Started " + new Date() + " on "+ server + ":" + port +")");
 });

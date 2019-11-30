@@ -26,13 +26,12 @@
     "id": 3
   },
   {
-    "name": "Hydrophonics shutters",
-    "type": "output",
+    "name": "Another sensor",
+    "type": "input",
     "datatype": "integer",
-    "initialValue": 50,
     "min": 0,
-    "max": 100,
-    "source": "/tmp/control1.source",
+    "max": 10000,
+    "source": "/tmp/sensor4.source",
     "id": 4
   }
 ]
