@@ -3,8 +3,9 @@
     "name": "Lettuce (Hydro)",
     "type": "input",
     "datatype": "float",
+    "unit": "V",
     "min": 0.1,
-    "max": 2.1,
+    "max": 5.1,
     "source": "/tmp/sensor1.source",
     "id": 1
   },
@@ -12,6 +13,7 @@
     "name": "Hydrophonics water supply",
     "type": "output",
     "datatype": "boolean",
+    "unit": "Active",
     "initialValue": true,
     "source": "/tmp/sensor2.source",
     "id": 2
@@ -20,17 +22,19 @@
     "name": "Hydrophonics server temperature",
     "type": "input",
     "datatype": "integer",
+    "unit": "℃",
     "min": 0,
-    "max": 10000,
+    "max": 100,
     "source": "/tmp/sensor3.source",
     "id": 3
   },
   {
-    "name": "Another sensor",
+    "name": "Ambient Temperature",
     "type": "input",
     "datatype": "integer",
+    "unit": "℃",
     "min": 0,
-    "max": 10000,
+    "max": 100,
     "source": "/tmp/sensor4.source",
     "id": 4
   }

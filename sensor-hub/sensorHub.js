@@ -18,6 +18,7 @@ var server = ip.address();
     "name": deviceName,
     "server" : serverAddress,
     "port" : serverPort,
+    "unit" : deviceUnit,
     "type" : deviceType (Input/Output),
     "datatype" : deviceDataType (float, integer, boolean),
     "min" : deviceMinimumValue,
@@ -274,8 +275,8 @@ function getUniqueID()
 function findDevice(id)
 {
     //TODO: Could maybe use a hash table to speed up searching
-    
-    for(var searchIndex = 0; searchIndex < devices.length; i++)
+
+    for(var searchIndex = 0; searchIndex < devices.length; searchIndex++)
     {
         if(devices[searchIndex].id == id)
         {
@@ -289,15 +290,9 @@ function findDevice(id)
 //Server our web page
 app.use('/Inteliome',express.static(__dirname + '/Dashboard'));
 
-/*
-//Endpoint: dashboard (The default http page)
-app.get("/dashboard", function(request, response){
-    //We generate a website that will automatically generate the device interfaces
-
-});
-*/
 //Endpoint: getUpdate (For updating the dashboard)
-app.get("/getUpdate", function(request, response){
+app.post("/getUpdate", function(request, response){
+    
     if(!request.body.hasOwnProperty("ids"))
     {
         //Report failure
@@ -322,9 +317,9 @@ app.get("/getUpdate", function(request, response){
     var responseObject = [];
     var requestedIDs = request.body.ids;
     for(i = 0; i < requestedIDs.length; i++)
-    {
+    {   
         var requestedDevice = findDevice(requestedIDs[i]);
-        var deviceResponse;
+        var deviceResponse = null;
         if(requestedDevice != null)
         {
             //The device exists
@@ -347,7 +342,7 @@ app.get("/getUpdate", function(request, response){
         responseObject.push(deviceResponse);
     }
 
-    response.json(responseObject)
+    response.json(responseObject);
 });
 
 //Endpoint: getDevices
@@ -359,6 +354,7 @@ app.get("/getUpdate", function(request, response){
         "name" : deviceName,
         "type" : deviceType (Input/Output),
         "datatype" : deviceDatatype (integer, float, boolean),
+        "unit" : deviceUnit,
         "min" : deviceMinimumValue,
         "max" : deviceMaximumValue,
         "value" : deviceCurrentValue
@@ -366,7 +362,7 @@ app.get("/getUpdate", function(request, response){
     ...
 ]
 */
-app.get("/getDevices", function(request, response){
+app.post("/getDevices", function(request, response){
     var responseObject = [];
     for(i = 0; i < devices.length; i++)
     {
@@ -375,6 +371,7 @@ app.get("/getDevices", function(request, response){
             "name" : devices[i].name,
             "type" : devices[i].type,
             "datatype" : devices[i].datatype,
+            "unit" : devices[i].unit,
             "min" : devices[i].min,
             "max" : devices[i].max,
             "value" : devices[i].value
@@ -465,6 +462,7 @@ app.get("/register", function(request, response)
                 "port"      : deviceConfigs[i].port,
                 "type"      : deviceConfigs[i].type,
                 "datatype"  : deviceConfigs[i].datatype,
+                "unit"      : deviceConfigs[i].unit,
                 "min"       : deviceConfigs[i].min,
                 "max"       : deviceConfigs[i].max,
                 "value"     : deviceConfigs[i].initialValue
@@ -510,7 +508,7 @@ app.get("/register", function(request, response)
 
 //Endpoint: Any unknown endpoint gets redirected to the dashboard
 app.get('*', function (req, res) {
-    console.log("Got request for " + req.originalUrl);
+    //console.log("Debug - Recieved request for " + req.originalUrl);
     res.redirect('/Inteliome/dashboard.html');
 });
 

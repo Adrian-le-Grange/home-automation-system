@@ -4,44 +4,120 @@ var sensorHubPort = "3939";
 
 var devices = [];
 var deviceIDs = [];
-var deviceWidgets = [];
 
-$(document).ready(function () {
+function onReady()
+{
     //Collapse the sidebar when button is clicked
     $('#sidebarCollapse').on('click', function () {
         $('#sidebar').toggleClass('active');
     });
 
     var request = new XMLHttpRequest();
-    request.open('GET', '/getDevices', false);  // `false` makes the request synchronous
+    request.open('POST', '/getDevices', false);  // `false` makes the request synchronous
     request.send(null);
 
     if (request.status === 200)
     {
         devices = JSON.parse(request.responseText);
         console.log("Discovered " + devices.length + " devices");
+
+        //Add discovered sensors to the list of IDs
+        for(i = 0; i < devices.length; i++)
+        {
+            deviceIDs.push(devices[i].id);
+        }
     }
 
     //Generate the widgets for the devices
-    generateSensorWidgets();
+    generateDeviceWidgets();
 
-    //Start updating the dash by polling the 
-    /*
-    $(function() {
-        setTimeout(updateSensorValues, pollingRate);
-    });
-    */
-});
+    //Start updating the dash by polling the sensor hub
+    setTimeout(updateDeviceValues, pollingRate);
+}
+$(document).ready(onReady);
 
-function generateSensorWidgets()
+//Function that is used to find a registered object by id
+//Returns the object if found and null otherwise
+function findDevice(id)
+{
+    //TODO: Could maybe use a hash table to speed up searching
+
+    for(var searchIndex = 0; searchIndex < devices.length; searchIndex++)
+    {
+        if(devices[searchIndex].id == id)
+        {
+            return devices[searchIndex];
+        }
+    }
+
+    return null;
+}
+
+function roundTo(n, digits)
+{
+    if (digits === undefined)
+    {
+        digits = 0;
+    }
+
+    var multiplicator = Math.pow(10, digits);
+    n = parseFloat((n * multiplicator).toFixed(11));
+    var test = (Math.round(n) / multiplicator);
+    return +(test.toFixed(digits));
+  }
+
+function generateTicks(min, max)
+{
+    var ticks = [];
+    if(min == 0 && max == 1)
+    {
+        //Boolean value
+        ticks = ["0" , "1"];
+    }
+    else
+    {
+        var range = max - min;
+        var steps = 10;
+
+        var stepSize = range/steps;
+
+        var currentStepValue = min;
+        ticks.push(roundTo(currentStepValue, 2).toString());
+
+        for(var i = 0; i < steps; i++)
+        {
+            currentStepValue += stepSize;
+            ticks.push(roundTo(currentStepValue, 2).toString());
+        }
+    }
+
+    return ticks;
+}
+
+function generateHighlights(min, max, redPercentage)
+{
+    var highlights = [];
+
+    var highlight = {
+        "color": "rgba(200, 50, 50, .75)"
+    }
+
+    highlight.from = max - (max*(redPercentage/100));
+
+    highlight.to = max;
+
+    highlights.push(highlight);
+
+    return highlights;
+}
+
+function generateDeviceWidgets()
 {
     console.log("Generating widgets...");
     for(i = 0; i < devices.length; i++)
     {
         //Create the card
         var card = document.createElement('div');
-        
-        //Add id to card
         var sensorWidgetID = "sensor" + devices[i].id + "Widget";
         $(card).attr("id", sensorWidgetID);
 
@@ -51,46 +127,18 @@ function generateSensorWidgets()
         title.innerHTML = devices[i].name;
         card.appendChild(title);
 
-        console.log("Appending to DOM")
-        //Add card to the widget container
-        document.getElementById("widgetsContainer").appendChild(card);
-
-        //Add canvas to card
-        /*
-        //Create the guage
-        var gauge = new RadialGauge({
-            renderTo: 'canvas-id',
+        //Add gauge to card
+        devices[i].gaugeUI = new RadialGauge({
+            renderTo: document.createElement("canvas"),
             width: 300,
             height: 300,
-            units: "Km/h",
-            minValue: 0,
-            startAngle: 0,
-            ticksAngle: 180,
-            valueBox: false,
-            maxValue: 220,
-            majorTicks: [
-                "0",
-                "20",
-                "40",
-                "60",
-                "80",
-                "100",
-                "120",
-                "140",
-                "160",
-                "180",
-                "200",
-                "220"
-            ],
+            units: devices[i].unit,
+            minValue: devices[i].min,
+            maxValue: devices[i].max,
+            majorTicks: generateTicks(devices[i].min, devices[i].max),
             minorTicks: 2,
             strokeTicks: true,
-            highlights: [
-                {
-                    "from": 160,
-                    "to": 220,
-                    "color": "rgba(200, 50, 50, .75)"
-                }
-            ],
+            highlights: generateHighlights(devices[i].min, devices[i].max, 10),
             colorPlate: "#fff",
             borderShadowWidth: 0,
             borders: false,
@@ -99,24 +147,62 @@ function generateSensorWidgets()
             needleCircleSize: 7,
             needleCircleOuter: true,
             needleCircleInner: false,
-            animationDuration: 1500,
-            animationRule: "linear",
-            animationTarget: "plate"
-        }).draw();
-        */
+            animationDuration: 800,
+            animationRule: "linear"
+        });
+        card.appendChild(devices[i].gaugeUI.options.renderTo);
+        
+        //Add card to the widget container
+        document.getElementById("widgetsContainer").appendChild(card);
+
+        //Draw our gauge
+        devices[i].gaugeUI.draw();
     }
 }
 
-function updateSensorValues()
+function updateDeviceValues()
 {
-    //We retrieve the latest sensor values from the server
-    var request = new Request(sensorHubURI + ":" + sensorHubPort + "/getUpdate", { method: 'GET', body: JSON.stringify(deviceIDs) });
-    fetch(request).then(function(response) {
-        return response.json();
-    }).then(function(json) {
-        console.log(json);
-        //Update each of the device interfaces
-    });
+    //Create query body
+    var updateRequestBody = {};
+    updateRequestBody.ids = deviceIDs;
 
-    setTimeout(updateSensorValues, pollingRate);
+    var request = new XMLHttpRequest();   // new HttpRequest instance 
+    request.open("POST", "/getUpdate", false);
+    request.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
+    request.send(JSON.stringify(updateRequestBody));
+
+    if(request.status === 200)
+    {
+        var responseArray = JSON.parse(request.responseText);
+        for(var i = 0; i < responseArray.length; i++)
+        {
+            var response = responseArray[i];
+
+            if(response.status == "ok")
+            {
+                //Find the sensor with this id and update it's gauge value
+                var device = findDevice(response.id);
+                if(device != null)
+                {
+                    //console.log("Debug - Updated sensor (" + device.name + ")\n\tNew: " + response.value + " (Old: " + device.gaugeUI.value + ")");
+                    //device.gaugeUI.update({ value : response.value });
+                    device.gaugeUI.value = response.value;
+                }
+                else
+                {
+                    console.log("Warning - Recieved update for unknown device");
+                }
+            }
+            else
+            {
+                //Indicate that this sensor is not updating or removed
+            }
+        }
+    }
+    else
+    {
+        console.log("Warning - Update request failed (Status code: " + request.status + ")");
+    }
+
+    setTimeout(updateDeviceValues, pollingRate);
 }

@@ -211,6 +211,22 @@ function checkConfigObject(configObject)
         }
     }
 
+    //Check 'unit'
+    if(!configObject.hasOwnProperty('unit'))
+    {
+        return  {
+                    "valid" : false,
+                    "message" : "Device configuration object is missing the 'unit' attribute"
+                }
+    }
+
+    if(configObject.source == "")
+    {
+        return  {
+                    "valid" : false,
+                    "message" : "The 'unit' attribute may not be an empty string"
+                }
+    }
 
     //TODO: Check that path specified by source exists
     //TODO: Check that a value can be written to or read from source
@@ -248,7 +264,8 @@ function initialize(deviceConfigs)
                         "type" : deviceConfigs[i].type,
                         "datatype" : deviceConfigs[i].datatype,
                         "server" : server,
-                        "port" : port
+                        "port" : port,
+                        "unit" : deviceConfigs[i].unit
                     };
 
                 //Outputs has a initial value attribute
