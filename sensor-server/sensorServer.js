@@ -12,8 +12,9 @@ var server = ip.address();
 
 const sensorHubIP = "127.0.0.1";
 const sensorHubPort = "3939";
-
 const configRefreshRate = 5000;
+
+var registeredDevices = [];
 
 //Function to check if a given config object (objects contained in 
 //devices.json) is valid
@@ -263,21 +264,21 @@ function removeConfigFileIDs(configsArray)
     overwriteConfigFile(configsArray);
 }
 
-function initialize(registeredDevices)
+function initialize(configs)
 {
-    var registerArray = []; //Array that keeps the register objects of all sensors that need to be registered
-
-    //Check if all devices have an id field.
+    var registerArray = []; //The registerArray contains the objects used to register the devices on the sensor hub
+    var configsRegisterIndexes = []; //Contains the indexs of objects that will be registered in the configs array
+    
     var numNewConfigurations = 0;
-    for(var i = 0; i < registeredDevices.length; i++)
+    for(var i = 0; i < configs.length; i++)
     {
-        var checkObject = checkConfigObject(registeredDevices[i]);
+        var checkObject = checkConfigObject(configs[i]);
         if(checkObject.valid)
         {
             //The object configuration is valid
             
             //If there is no 'id' attribute then the device has not been registered
-            if(!registeredDevices[i].hasOwnProperty('id'))
+            if(!configs[i].hasOwnProperty('id'))
             {
                 //We need to register device on the sensor interface server
 
@@ -285,33 +286,33 @@ function initialize(registeredDevices)
                 numNewConfigurations++;
                 var registerObject = 
                     {
-                        "name": registeredDevices[i].name,
-                        "type" : registeredDevices[i].type,
-                        "datatype" : registeredDevices[i].datatype,
+                        "name": configs[i].name,
+                        "type" : configs[i].type,
+                        "datatype" : configs[i].datatype,
                         "server" : server,
                         "port" : port,
-                        "unit" : registeredDevices[i].unit
+                        "unit" : configs[i].unit
                     };
 
                 //Outputs has a initial value attribute
                 if(registerObject.type == "output")
                 {
-                    registerObject.initialValue = registeredDevices[i].initialValue;
+                    registerObject.initialValue = configs[i].initialValue;
                 }
 
                 //Float and integer types have min and max values
-                switch(registeredDevices[i].datatype)
+                switch(configs[i].datatype)
                 {
                     case "float":
                     {
-                        registerObject.min = registeredDevices[i].min;
-                        registerObject.max = registeredDevices[i].max;
+                        registerObject.min = configs[i].min;
+                        registerObject.max = configs[i].max;
                         break;
                     }
                     case "integer":
                     {
-                        registerObject.min = registeredDevices[i].min;
-                        registerObject.max = registeredDevices[i].max;
+                        registerObject.min = configs[i].min;
+                        registerObject.max = configs[i].max;
                         break;
                     }
                     case "boolean":
@@ -322,6 +323,31 @@ function initialize(registeredDevices)
 
                 //Add the object to the array of objects that are going to be registered
                 registerArray.push(registerObject);
+
+                //Store the index of the object that will be registered
+                configsRegisterIndexes.push(i);
+            }
+            else
+            {
+                //The device is already registered
+                
+                //Check that this device is present in the registered devices array
+                var isPresent = false;
+                for(var x = 0; x < registeredDevices.length; x++)
+                {
+                    if(registeredDevices[i].id == configs[i].id)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if(!isPresent)
+                {
+                    //We add the device to the list of registered devices
+                    registeredDevices.push(configs[i]);
+                }
+                //else do nothing since the device is already present
             }
         }
         else
@@ -377,7 +403,10 @@ function initialize(registeredDevices)
                         numSuccessful++;
 
                         //Store the allocated id for the device
-                        registeredDevices[i].id = responses[i].id;
+                        configs[configsRegisterIndexes[i]].id = responses[i].id;
+
+                        //Add this device to the list of registered devices
+                        registeredDevices.push(configs[configsRegisterIndexes[i]]);
                     }
                     else
                     {
@@ -388,14 +417,14 @@ function initialize(registeredDevices)
                 }
 
                 //Remove the local address and port from the config array (We dont want to save this in the config file)
-                for(i = 0; i < registeredDevices.length; i++)
+                for(i = 0; i < configs.length; i++)
                 {
-                    delete registeredDevices[i].server;
-                    delete registeredDevices[i].port;
+                    delete configs[i].server;
+                    delete configs[i].port;
                 }
 
                 //Overwrite devices.json file with the updated configs
-                overwriteConfigFile(registeredDevices);
+                overwriteConfigFile(configs);
 
                 if(numSuccessful > 0)
                 {
@@ -414,10 +443,10 @@ function initialize(registeredDevices)
 function updateDevices()
 {
     //Read the config file
-    registeredDevices = JSON.parse(fs.readFileSync('./devices.json', 'utf8'));
+    var currentConfigs = JSON.parse(fs.readFileSync('./devices.json', 'utf8'));
 
     //Attempt to register new devices (if any)
-    initialize(registeredDevices);
+    initialize(currentConfigs);
 
     setTimeout(updateDevices, configRefreshRate);
 }
@@ -569,17 +598,13 @@ app.get("/control", function(request, response)
 //-- Initialize the server --//
 console.log("Initializing...");
 
-//Read the config file
-var registeredDevices = JSON.parse(fs.readFileSync('./devices.json', 'utf8'));
-
 //Remove config file IDs if specified
 if(process.argv[2] == "-r")
 {
-    removeConfigFileIDs(registeredDevices);
+    //Remove all device IDs in the config file
+    var currentConfigs = JSON.parse(fs.readFileSync('./devices.json', 'utf8'));
     
-    //Re-read configs as the id's have been removed from the file
-    registeredDevices = JSON.parse(fs.readFileSync('./devices.json', 'utf8'));
-    
+    removeConfigFileIDs(currentConfigs);
     console.log("Removed device IDs");
 }
 

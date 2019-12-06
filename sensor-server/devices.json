@@ -37,5 +37,14 @@
     "max": 100,
     "source": "/tmp/sensor4.source",
     "id": 4
+  },
+  {
+    "name": "Added dynamically",
+    "type": "output",
+    "datatype": "boolean",
+    "unit": "Nice",
+    "initialValue": true,
+    "source": "/tmp/sensor5.source",
+    "id": 5
   }
 ]
