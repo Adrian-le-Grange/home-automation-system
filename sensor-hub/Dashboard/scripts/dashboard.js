@@ -120,6 +120,7 @@ function generateDeviceWidgets()
         var card = document.createElement('div');
         var sensorWidgetID = "sensor" + devices[i].id + "Widget";
         $(card).attr("id", sensorWidgetID);
+        $(card).attr("class", "widget");
 
         //Add title to card
         var title = document.createElement("div");
@@ -152,6 +153,11 @@ function generateDeviceWidgets()
         });
         card.appendChild(devices[i].gaugeUI.options.renderTo);
         
+        //Add status LED to card
+        devices[i].statusLight = document.createElement("div");
+        $(devices[i].statusLight).attr("class", "widget-status-led-green");
+        card.appendChild(devices[i].statusLight);
+
         //Add card to the widget container
         document.getElementById("widgetsContainer").appendChild(card);
 
@@ -187,6 +193,15 @@ function updateDeviceValues()
                     //console.log("Debug - Updated sensor (" + device.name + ")\n\tNew: " + response.value + " (Old: " + device.gaugeUI.value + ")");
                     //device.gaugeUI.update({ value : response.value });
                     device.gaugeUI.value = response.value;
+                    //device.isResponding = response.isResponding;
+                    if(response.isResponding)
+                    {
+                        $(device.statusLight).attr("class", "widget-status-led-green");
+                    }
+                    else
+                    {
+                        $(device.statusLight).attr("class", "widget-status-led-red");
+                    }
                 }
                 else
                 {

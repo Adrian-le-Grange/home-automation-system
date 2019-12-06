@@ -202,7 +202,7 @@ a.article:hover
     background-color: var(--background-color);
 }
 
-.widget-container > div 
+.widget
 {
     background-color: var(--quaternary-color);
     width: 350px;
@@ -217,4 +217,43 @@ a.article:hover
 {
     color: #2b3338;
     margin: 5px;
+}
+
+/*LED indicators*/
+.led-green
+{
+    margin: 0 auto;
+    width: 24px;
+    height: 24px;
+    background-color: #ABFF00;
+    border-radius: 50%;
+    box-shadow: rgba(0, 0, 0, 0.2) 0 -1px 7px 1px, inset #304701 0 -1px 9px, #89FF00 0 2px 12px;
+  }
+
+.widget-status-led-green
+{
+    position: relative;
+    float: none;
+    margin: 0;
+    top: -20px;
+    left: 20px;
+    width: 24px;
+    height: 24px;
+    background-color: #ABFF00;
+    border-radius: 50%;
+    box-shadow: rgba(0, 0, 0, 0.2) 0 -1px 7px 1px, inset #304701 0 -1px 9px, #89FF00 0 2px 12px;
+}
+
+.widget-status-led-red
+{
+    position: relative;
+    float: none;
+    margin: 0;
+    top: -20px;
+    left: 20px;
+    width: 24px;
+    height: 24px;
+    background-color: #F00;
+    border-radius: 50%;
+    box-shadow: rgba(0, 0, 0, 0.2) 0 -1px 7px 1px, inset #441313 0 -1px 9px, rgba(255, 0, 0, 0.5) 0 2px 12px;
 }

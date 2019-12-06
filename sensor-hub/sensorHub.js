@@ -326,7 +326,8 @@ app.post("/getUpdate", function(request, response){
             deviceResponse = {
                 "status" : "ok",
                 "id" : requestedDevice.id,
-                "value" : requestedDevice.value
+                "value" : requestedDevice.value,
+                "isResponding" : requestedDevice.isResponding
             };
         }
         else
@@ -529,12 +530,13 @@ function updateDeviceValue(device)
     request(requestOptions, (err, res, body) => {
         if(err)
         {
-            console.log("Error - Could not fetch update");
+            device.isResponding = false;
             return;
         }
         var response = JSON.parse(body);
         
         //Update local value with the retrieved value
+        device.isResponding = true;
         device.value = response.value;
     });
 }

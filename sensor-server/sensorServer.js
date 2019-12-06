@@ -335,7 +335,7 @@ function initialize(configs)
                 var isPresent = false;
                 for(var x = 0; x < registeredDevices.length; x++)
                 {
-                    if(registeredDevices[i].id == configs[i].id)
+                    if(registeredDevices[x].id == configs[i].id)
                     {
                         found = true;
                         break;
