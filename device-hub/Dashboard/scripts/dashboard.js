@@ -12,22 +12,6 @@ function onReady()
         $('#sidebar').toggleClass('active');
     });
 
-    var request = new XMLHttpRequest();
-    request.open('POST', '/getDevices', false);  // `false` makes the request synchronous
-    request.send(null);
-
-    if (request.status === 200)
-    {
-        devices = JSON.parse(request.responseText);
-        console.log("Discovered " + devices.length + " devices");
-
-        //Add discovered sensors to the list of IDs
-        for(i = 0; i < devices.length; i++)
-        {
-            deviceIDs.push(devices[i].id);
-        }
-    }
-
     //Generate the widgets for the devices
     generateDeviceWidgets();
 
@@ -111,8 +95,37 @@ function generateHighlights(min, max, redPercentage)
     return highlights;
 }
 
+function retrieveDevices()
+{
+    var request = new XMLHttpRequest();
+    request.open('POST', '/getDevices', false);  // `false` makes the request synchronous
+    request.send(null);
+
+    if (request.status === 200)
+    {
+        devices = JSON.parse(request.responseText);
+        console.log("Discovered " + devices.length + " devices");
+
+        //Clear current devices
+        deviceIDs = [];
+
+        //Add discovered sensors to the list of IDs
+        for(i = 0; i < devices.length; i++)
+        {
+            deviceIDs.push(devices[i].id);
+        }
+    }
+}
+
 function generateDeviceWidgets()
 {
+    //Remove all existing widgets
+    var widgetContainer = document.getElementById("widgetsContainer");
+    var cNode = widgetContainer.cloneNode(false);
+    widgetContainer.parentNode.replaceChild(cNode, widgetContainer);
+    
+    retrieveDevices();
+
     console.log("Generating widgets...");
     for(i = 0; i < devices.length; i++)
     {
