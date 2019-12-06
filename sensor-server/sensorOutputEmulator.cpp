@@ -32,7 +32,7 @@ void emulateBooleanSensor(string filename)
 void emulateFloatSensor(string filename)
 {
     //Randomise a float value
-    float value = static_cast<float>( rand()) / (static_cast<float>(RAND_MAX/5.0) );
+    float value = static_cast<float>( rand()) / (static_cast<float>(RAND_MAX/10.0) );
     
     //Create or overwrite file for sensor
     ofstream sensorFile;
@@ -91,7 +91,7 @@ int main(int argc, char** argv)
         emulateBooleanSensor("/tmp/sensor2.source");
         emulateIntegerSensor("/tmp/sensor3.source");
         emulateIntegerSensor("/tmp/sensor4.source");
-        //cout << "Updated" << endl;
+        emulateBooleanSensor("/tmp/sensor5.source");
         usleep(updateInterval*1000);
     }
 

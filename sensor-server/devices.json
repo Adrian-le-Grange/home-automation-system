@@ -4,8 +4,8 @@
     "type": "input",
     "datatype": "float",
     "unit": "V",
-    "min": 0.1,
-    "max": 5.1,
+    "min": 0,
+    "max": 5,
     "source": "/tmp/sensor1.source",
     "id": 1
   },

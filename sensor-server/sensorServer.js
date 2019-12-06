@@ -10,8 +10,10 @@ var port = process.env.port || 3838;
 //Set local address
 var server = ip.address();
 
-const sensorManagementServerIP = "127.0.0.1";
-const sensorManagementServerPort = "3939";
+const sensorHubIP = "127.0.0.1";
+const sensorHubPort = "3939";
+
+const configRefreshRate = 5000;
 
 //Function to check if a given config object (objects contained in 
 //devices.json) is valid
@@ -237,56 +239,79 @@ function checkConfigObject(configObject)
             }
 }
 
-function initialize(deviceConfigs)
+function overwriteConfigFile(configsArray)
 {
-    var registerArray = []; //Array that keeps the register objects of all
-                            //sensors that need to be registered
+    //Overwrite config file with the updated configs
+    fs.renameSync("./devices.json", "./devices.json.old");
+    var configFile = JSON.stringify(configsArray, null, 2);
+    fs.appendFileSync("./devices.json", configFile);
+    fs.unlinkSync("./devices.json.old") ;
+}
+
+function removeConfigFileIDs(configsArray)
+{
+    //We remove all ids from config file as if we are registering all devices again
+    for(i = 0; i < configsArray.length; i++)
+    {
+        if(configsArray[i].hasOwnProperty('id'))
+        {
+            delete configsArray[i].id;
+        }
+    }
+
+    //Write the updated configs back to file
+    overwriteConfigFile(configsArray);
+}
+
+function initialize(registeredDevices)
+{
+    var registerArray = []; //Array that keeps the register objects of all sensors that need to be registered
 
     //Check if all devices have an id field.
     var numNewConfigurations = 0;
-    for(var i = 0; i < deviceConfigs.length; i++)
+    for(var i = 0; i < registeredDevices.length; i++)
     {
-        var checkObject = checkConfigObject(deviceConfigs[i]);
+        var checkObject = checkConfigObject(registeredDevices[i]);
         if(checkObject.valid)
         {
             //The object configuration is valid
             
             //If there is no 'id' attribute then the device has not been registered
-            if(!deviceConfigs[i].hasOwnProperty('id'))
+            if(!registeredDevices[i].hasOwnProperty('id'))
             {
                 //We need to register device on the sensor interface server
-                numNewConfigurations++;
 
                 //Create a registration object for the device
+                numNewConfigurations++;
                 var registerObject = 
                     {
-                        "name": deviceConfigs[i].name,
-                        "type" : deviceConfigs[i].type,
-                        "datatype" : deviceConfigs[i].datatype,
+                        "name": registeredDevices[i].name,
+                        "type" : registeredDevices[i].type,
+                        "datatype" : registeredDevices[i].datatype,
                         "server" : server,
                         "port" : port,
-                        "unit" : deviceConfigs[i].unit
+                        "unit" : registeredDevices[i].unit
                     };
 
                 //Outputs has a initial value attribute
                 if(registerObject.type == "output")
                 {
-                    registerObject.initialValue = deviceConfigs[i].initialValue;
+                    registerObject.initialValue = registeredDevices[i].initialValue;
                 }
 
                 //Float and integer types have min and max values
-                switch(deviceConfigs[i].datatype)
+                switch(registeredDevices[i].datatype)
                 {
                     case "float":
                     {
-                        registerObject.min = deviceConfigs[i].min;
-                        registerObject.max = deviceConfigs[i].max;
+                        registerObject.min = registeredDevices[i].min;
+                        registerObject.max = registeredDevices[i].max;
                         break;
                     }
                     case "integer":
                     {
-                        registerObject.min = deviceConfigs[i].min;
-                        registerObject.max = deviceConfigs[i].max;
+                        registerObject.min = registeredDevices[i].min;
+                        registerObject.max = registeredDevices[i].max;
                         break;
                     }
                     case "boolean":
@@ -313,7 +338,7 @@ function initialize(deviceConfigs)
 
         //Now we register the devices that has not been regestered
         var requestOptions = {
-            uri: "http://" + sensorManagementServerIP + ":" + sensorManagementServerPort + "/register",
+            uri: "http://" + sensorHubIP + ":" + sensorHubPort + "/register",
             body: JSON.stringify(registerArray),
             method: 'GET',
             headers: 
@@ -324,58 +349,86 @@ function initialize(deviceConfigs)
         request(requestOptions, (err, res, body) => {
             if(err)
             {
-                console.log("Error - Failed to register new devices");
-                return console.log(err);
-            }
-
-            var responses = JSON.parse(body);
-            var numSuccessful = 0;
-            for(var i = 0; i < responses.length; i++)
-            {
-                if(responses[i].status == "ok")
+                console.log("Warning - Failed to register new devices");
+                
+                switch(err.code)
                 {
-                    //We count how many of the devices registered successfully
-                    numSuccessful++;
-
-                    //Update the deviceConfiguration objects with their newly allocated ids
-                    deviceConfigs[i].id = responses[i].id;
-                }
-                else
-                {
-                    console.log("Warning - Device registration failed");
-                    if(responses[i].hasOwnProperty("message"))
+                    case "ECONNREFUSED":
                     {
-                        console.log("\tReason: " + responses[i].message);
+                        console.log("\tReason - Could not connect to sensor hub server @ " + sensorHubIP + ":" + sensorHubPort);
+                        break;
+                    }
+                    default:
+                    {
+                        console.log("\tReason - " + err.Error);
                     }
                 }
             }
-
-            //Remove the local address and port from the config array (We dont want to save this in the config file)
-            for(i = 0; i < deviceConfigs.length; i++)
+            else //Request succeeded
             {
-                delete deviceConfigs[i].server;
-                delete deviceConfigs[i].port;
+                var responses = JSON.parse(body);
+                
+                var numSuccessful = 0;
+                var numFailed = 0;
+                for(var i = 0; i < responses.length; i++)
+                {
+                    if(responses[i].status == "ok")
+                    {
+                        numSuccessful++;
+
+                        //Store the allocated id for the device
+                        registeredDevices[i].id = responses[i].id;
+                    }
+                    else
+                    {
+                        numFailed++;
+                        console.log("Warning - Device registration failed");
+                        console.log("\tReason: " + responses[i].message);
+                    }
+                }
+
+                //Remove the local address and port from the config array (We dont want to save this in the config file)
+                for(i = 0; i < registeredDevices.length; i++)
+                {
+                    delete registeredDevices[i].server;
+                    delete registeredDevices[i].port;
+                }
+
+                //Overwrite devices.json file with the updated configs
+                overwriteConfigFile(registeredDevices);
+
+                if(numSuccessful > 0)
+                {
+                    console.log("Successfully registered " + numSuccessful + " new device(s)");
+                }
+
+                if(numFailed > 0)
+                {
+                    console.log("Could not register " + numFailed + " of the device(s)");
+                }
             }
-
-            //Overwrite devices.json file with the updated configs
-            fs.renameSync("./devices.json", "./devices.json.old");
-            //fs.appendFileSync("./devices.json", JSON.stringify(deviceConfigs));
-            var configFile = JSON.stringify(deviceConfigs, null, 2);
-            fs.appendFileSync("./devices.json", configFile);
-            fs.unlinkSync("./devices.json.old") ;
-
-            console.log("Successfully registered " + numSuccessful + " new device(s)");
         });
     }
 }
 
-function getCurrentDeviceValue(deviceConfig)
+function updateDevices()
+{
+    //Read the config file
+    registeredDevices = JSON.parse(fs.readFileSync('./devices.json', 'utf8'));
+
+    //Attempt to register new devices (if any)
+    initialize(registeredDevices);
+
+    setTimeout(updateDevices, configRefreshRate);
+}
+
+function getCurrentDeviceValue(device)
 {
     //Get the current value in the file
-    var value = JSON.parse(fs.readFileSync(deviceConfig.source));
+    var value = JSON.parse(fs.readFileSync(device.source));
 
     //Case the value to appropriate type
-    switch(deviceConfig.datatype)
+    switch(device.datatype)
     {
         case "integer":
         {
@@ -401,11 +454,11 @@ function getCurrentDeviceValue(deviceConfig)
 //Returns the device's config object if the ID was found and null otherwise
 function getDeviceConfigByID(deviceID)
 {
-    for(i = 0; i < deviceConfigs.length; i++)
+    for(i = 0; i < registeredDevices.length; i++)
     {
-        if(deviceConfigs[i].id == deviceID)
+        if(registeredDevices[i].id == deviceID)
         {
-            return deviceConfigs[i];
+            return registeredDevices[i];
         }
     }
 
@@ -413,12 +466,13 @@ function getDeviceConfigByID(deviceID)
 }
 
 //Endpoint: poll
+//TODO: Add ability to request array of specific sensors
 app.get("/poll", function(request, response)
 {   
     var responseObject = null;
     
     if(request.body.hasOwnProperty("id"))
-    {
+    {   
         //Check if id is known
         var device = getDeviceConfigByID(request.body.id);
         if(device == null)
@@ -441,20 +495,18 @@ app.get("/poll", function(request, response)
         }
     }
     else
-    {
-        //  TODO: Add ability to request only specific sensors
-        
+    {   
         //Return list of current sensor values and their respective ids
         responseObject = [];
-        
-        for(i = 0; i < deviceConfigs.length; i++)
+
+        for(i = 0; i < registeredDevices.length; i++)
         {
             //Get reading from this sensor
-            var value = getCurrentDeviceValue(deviceConfigs[i]);
+            var value = getCurrentDeviceValue(registeredDevices[i]);
 
             responseObject.push({
                 "status" : "ok",
-                "id" : deviceConfigs[i].id,
+                "id" : registeredDevices[i].id,
                 "value" : value
             });
         }
@@ -518,26 +570,22 @@ app.get("/control", function(request, response)
 console.log("Initializing...");
 
 //Read the config file
-var deviceConfigs = JSON.parse(fs.readFileSync('./devices.json', 'utf8'));
+var registeredDevices = JSON.parse(fs.readFileSync('./devices.json', 'utf8'));
 
 //Remove config file IDs if specified
 if(process.argv[2] == "-r")
 {
-    //We remove all ids from config file as if we are registering all devices again
-    for(i = 0; i < deviceConfigs.length; i++)
-    {
-        if(deviceConfigs[i].hasOwnProperty('id'))
-        {
-            delete deviceConfigs[i].id;
-        }
-    }
+    removeConfigFileIDs(registeredDevices);
+    
+    //Re-read configs as the id's have been removed from the file
+    registeredDevices = JSON.parse(fs.readFileSync('./devices.json', 'utf8'));
+    
     console.log("Removed device IDs");
 }
-
-initialize(deviceConfigs);
 
 //Start the server
 app.listen(port, function ()
 {
     console.log("Sensor server running " + "(Started " + new Date() + " on "+ server + ":" + port +")");
+    updateDevices();
 });

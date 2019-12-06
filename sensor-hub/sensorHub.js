@@ -530,7 +530,7 @@ function updateDeviceValue(device)
         if(err)
         {
             console.log("Error - Could not fetch update");
-            return console.log(err);
+            return;
         }
         var response = JSON.parse(body);
         
@@ -540,7 +540,7 @@ function updateDeviceValue(device)
 }
 
 //Continously update current sensor values
-function updateSensorValues()
+function updateDeviceValues()
 {
     //Run through all known devices
     for(i = 0; i < devices.length; i++)
@@ -548,13 +548,12 @@ function updateSensorValues()
         updateDeviceValue(devices[i]);
     }
 
-    setTimeout(updateSensorValues, updateRate);
+    setTimeout(updateDeviceValues, updateRate);
 }
-
-updateSensorValues();
 
 //Start the server
 app.listen(port, function ()
 {
     console.log("Sensor hub running " + "(Started " + new Date() + " on "+ server + ":" + port +")");
+    updateDeviceValues();
 });

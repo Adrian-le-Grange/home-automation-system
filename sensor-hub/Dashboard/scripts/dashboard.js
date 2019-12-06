@@ -196,6 +196,8 @@ function updateDeviceValues()
             else
             {
                 //Indicate that this sensor is not updating or removed
+                console.log("Warning - Update request to device id: " + device.id + " failed");
+                console.log("\tReason: " + response.message);
             }
         }
     }
